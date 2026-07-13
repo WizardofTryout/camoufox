@@ -219,7 +219,8 @@ export class PageAgent {
   }
 
   _linkClicked(sync, anchorElement) {
-    if (anchorElement.ownerGlobal.docShell !== this._docShell)
+    // Firefox 152 renamed `ownerGlobal` to `documentGlobal` on nodes.
+    if ((anchorElement.documentGlobal || anchorElement.ownerGlobal).docShell !== this._docShell)
       return;
     this._browserPage.emit('pageLinkClicked', { phase: sync ? 'after' : 'before' });
   }
@@ -497,20 +498,26 @@ export class PageAgent {
   }
 
   async _dispatchTouchEvent({type, touchPoints, modifiers}) {
+    // Firefox 152+: windowUtils.sendTouchEvent (parallel-array API) was removed.
+    // Synthetic touch now goes through Window.synthesizeTouchEvent, which takes a
+    // sequence of SynthesizeTouchEventData objects. Mirrors upstream Playwright.
     const frame = this._frameTree.mainFrame();
-    const defaultPrevented = frame.domWindow().windowUtils.sendTouchEvent(
+    const defaultPrevented = frame.domWindow().synthesizeTouchEvent(
       type.toLowerCase(),
-      touchPoints.map((point, id) => id),
-      touchPoints.map(point => point.x),
-      touchPoints.map(point => point.y),
-      touchPoints.map(point => point.radiusX === undefined ? 1.0 : point.radiusX),
-      touchPoints.map(point => point.radiusY === undefined ? 1.0 : point.radiusY),
-      touchPoints.map(point => point.rotationAngle === undefined ? 0.0 : point.rotationAngle),
-      touchPoints.map(point => point.force === undefined ? 1.0 : point.force),
-      touchPoints.map(point => 0),
-      touchPoints.map(point => 0),
-      touchPoints.map(point => 0),
-      modifiers);
+      touchPoints.map((point, id) => ({
+        identifier: id,
+        offsetX: point.x,
+        offsetY: point.y,
+        radiiX: point.radiusX ?? 1.0,
+        radiiY: point.radiusY ?? 1.0,
+        rotationAngle: point.rotationAngle ?? 0.0,
+        pressure: point.force ?? 1.0,
+        tiltX: 0,
+        tiltY: 0,
+        twist: 0,
+      })),
+      modifiers
+    );
     return {defaultPrevented};
   }
 
