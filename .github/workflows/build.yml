@@ -94,28 +94,18 @@ jobs:
 
       - name: Setup and bootstrap
         run: |
-          # `setup-minimal` is docker-only (no local git repo). On a GitHub runner,
-          # actions/checkout leaves a .git at the repo root, so patch.py's
-          # `git clean -fdx && git reset --hard unpatched` (run inside the non-git
-          # source dir) escalates to that checkout .git and deletes the entire
-          # (untracked) Firefox source -> "./mach: not found" and set-target fails.
-          # `make setup` creates a NESTED git repo in the source dir with the
-          # `unpatched` tag patch.py expects, isolating the reset.
-          git config --global user.email "ci@camoufox.local"
-          git config --global user.name "Camoufox CI"
-          make setup
+          make setup-minimal
           make mozbootstrap
           mkdir -p dist
 
       - name: Create swap space
         run: |
-          # libxul/Rust can exceed 16 GB RAM + 16 GB swap and the runner gets
-          # SIGTERM'd (exit 143) mid-build; disk is plentiful (~115 GB free).
-          sudo fallocate -l 32G /swapfile
+          sudo fallocate -l 16G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
           sudo swapon /swapfile
           free -h
+          df -h /
 
       - name: Build
         env:
